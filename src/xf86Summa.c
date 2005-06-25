@@ -1588,7 +1588,7 @@ xf86SumInit(InputDriverPtr	drv,
 #ifdef XFree86LOADER
 static
 #endif
-InputDriverRec SUMMA = {
+_X_EXPORT InputDriverRec SUMMA = {
     1,				/* driver version */
     "summa",			/* driver name */
     NULL,			/* identify */
@@ -1648,9 +1648,11 @@ static XF86ModuleVersionInfo xf86SumVersionRec =
 				/* a tool */
 };
 
-XF86ModuleData summaModuleData = {&xf86SumVersionRec,
-				  xf86SumPlug,
-				  xf86SumUnplug};
+_X_EXPORT XF86ModuleData summaModuleData = {
+    &xf86SumVersionRec,
+    xf86SumPlug,
+    xf86SumUnplug
+};
 
 #endif /* XFree86LOADER */
 #endif /* XFREE86_V4 */
