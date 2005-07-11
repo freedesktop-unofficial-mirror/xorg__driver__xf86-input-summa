@@ -26,6 +26,10 @@
 
 /* $XFree86: xc/programs/Xserver/hw/xfree86/input/summa/xf86Summa.c,v 1.16 2003/11/03 05:11:49 tsi Exp $ */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #if 0
 static const char identification[] = "$Identification: 18 $";
 #endif
