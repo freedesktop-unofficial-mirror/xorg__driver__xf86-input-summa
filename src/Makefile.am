@@ -29,3 +29,6 @@
 @DRIVER_NAME@_drv_ladir = @inputdir@
 
 @DRIVER_NAME@_drv_la_SOURCES = xf86Summa.c
+
+AM_CPPFLAGS = -I$(top_srcdir)/src
+AM_CFLAGS = $(CWARNFLAGS) $(XORG_CFLAGS)
