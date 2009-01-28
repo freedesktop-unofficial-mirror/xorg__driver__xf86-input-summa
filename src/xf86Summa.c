@@ -30,14 +30,7 @@
 #include "config.h"
 #endif
 
-#include "xf86Version.h"
-
-#if XF86_VERSION_CURRENT >= XF86_VERSION_NUMERIC(3,9,0,0,0)
-#define XFREE86_V4 1
-#endif
-
-#ifdef XFREE86_V4
-/* post 3.9 headers */
+#include "xorgVersion.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -91,47 +84,6 @@ static const char *default_options[] =
 };
 
 static InputDriverPtr sumDrv;
-
-#else /* pre 3.9 headers */
-
-#define NEED_EVENTS
-#include <X11/X.h>
-#include <X11/Xproto.h>
-#include "misc.h"
-#include "inputstr.h"
-#include "scrnintstr.h"
-#include <X11/extensions/XI.h>
-#include <X11/extensions/XIproto.h>
-
-#if defined(sun) && !defined(i386)
-#define POSIX_TTY
-#include <errno.h>
-#include <termio.h>
-#include <fcntl.h>
-#include <ctype.h>
-
-#include "extio.h"
-#else
-#include "compiler.h"
-
-#include "xf86.h"
-#include "xf86Priv.h"
-#include "xf86_OSproc.h"
-#ifdef XFree86LOADER
-#endif
-#include "xf86Config.h"
-#include "xf86Xinput.h"
-#include "atKeynames.h"
-#endif
-
-#if !defined(sun) || defined(i386)
-#include "osdep.h"
-#include "exevents.h"
-
-#include "extnsionst.h"
-#include "extinit.h"
-#endif
-#endif
 
 /*
 ** Debugging macros
@@ -188,67 +140,9 @@ typedef struct
 */
 #define SUMMA_SECTION_NAME "SummaSketch"
 
-#ifndef XFREE86_V4
-
-#define PORT		1
-#define DEVICENAME	2
-#define THE_MODE	3
-#define CURSOR		4
-#define INCREMENT	5
-#define BORDER		6
-#define DEBUG_LEVEL     7
-#define HISTORY_SIZE	8
-#define ALWAYS_CORE	9
-#define ACTIVE_AREA	10
-#define ACTIVE_OFFSET	11
-#define COMPATIBLE	12
-#define RESOLUTION	13
-#define HITACHI_1217D	14
-
-#if !defined(sun) || defined(i386)
-static SymTabRec SumTab[] = {
-	{ENDSUBSECTION,		"endsubsection"},
-	{PORT,			"port"},
-	{DEVICENAME,		"devicename"},
-	{THE_MODE,		"mode"},
-	{CURSOR,		"cursor"},
-	{INCREMENT,		"increment"},
-	{BORDER,		"border"},
-	{DEBUG_LEVEL,		"debuglevel"},
-	{HISTORY_SIZE,		"historysize"},
-	{ALWAYS_CORE,		"alwayscore"},
-	{ACTIVE_AREA,		"activearea"},
-	{ACTIVE_OFFSET,		"activeoffset"},
-	{COMPATIBLE,		"compatible"},
-	{RESOLUTION,		"resolution"},
-	{HITACHI_1217D,		"hitachi_1217d"},
-	{-1,			""}
-};
-
-#define RELATIVE	1
-#define ABSOLUTE	2
-
-static SymTabRec SumModeTabRec[] = {
-	{RELATIVE,	"relative"},
-	{ABSOLUTE,	"absolute"},
-	{-1,		""}
-};
-
-#define PUCK		1
-#define STYLUS		2
-
-static SymTabRec SumPointTabRec[] = {
-	{PUCK,		"puck"},
-	{STYLUS,	"stylus"},
-	{-1,		""}
-};
-  
-#endif
-
-#endif /* Pre 3.9 headers */
 
 /*
-** Contants and macro
+** Constants and macro
 */
 #define BUFFER_SIZE	256	/* size of reception buffer */
 #define XI_NAME 	"SUMMA"	/* X device name for the stylus */
@@ -283,216 +177,6 @@ static const char * ss_initstr = SS_TABID0 SS_UPPER_ORIGIN SS_BINARY_FMT SS_STRE
 
 /* macro from counts/inch to counts/meter */
 #define LPI2CPM(res)	(res * 1000 / 25.4)
-
-/*
-** External declarations
-*/
-
-#ifndef XFREE86_V4
-
-#if defined(sun) && !defined(i386)
-#define ENQUEUE	suneqEnqueue
-#else
-#define ENQUEUE	xf86eqEnqueue
-
-extern void xf86eqEnqueue(
-    xEventPtr /*e*/
-);
-#endif
-
-extern void miPointerDeltaCursor(
-    int /*dx*/,
-    int /*dy*/,
-    unsigned long /*time*/
-);
-
-#endif
-
-#ifndef XFREE86_V4
-
-#if !defined(sun) || defined(i386)
-/*
-** xf86SumConfig
-** Reads the SummaSketch section from the XF86Config file
-*/
-static Bool
-xf86SumConfig(LocalDevicePtr *array, int inx, int max, LexPtr val)
-{
-    LocalDevicePtr	dev = array[inx];
-    SummaDevicePtr	priv = (SummaDevicePtr)(dev->private);
-    int			token;
-    int			mtoken;
-
-    DBG(2, ErrorF("xf86SumConfig\n"));
-
-    while ((token = xf86GetToken(SumTab)) != ENDSUBSECTION) {
-	switch(token) {
-	case DEVICENAME:
-	    if (xf86GetToken(NULL) != STRING)
-		xf86ConfigError("Option string expected");
-	    else {
-		dev->name = strdup(val->str);
-		if (xf86Verbose)
-		    ErrorF("%s SummaSketch X device name is %s\n", XCONFIG_GIVEN,
-			   dev->name);
-	    }
-	    break;
-
-	case PORT:
-	    if (xf86GetToken(NULL) != STRING)
-		xf86ConfigError("Option string expected");
-	    else {
-		priv->sumDevice = strdup(val->str);
-		if (xf86Verbose)
-		    ErrorF("%s SummaSketch port is %s\n", XCONFIG_GIVEN,
-			   priv->sumDevice);
-	    }
-	    break;
-
-	case THE_MODE:
-	    mtoken = xf86GetToken(SumModeTabRec);
-	    if ((mtoken == EOF) || (mtoken == STRING) || (mtoken == NUMBER)) 
-		xf86ConfigError("Mode type token expected");
-	    else {
-		switch (mtoken) {
-		case ABSOLUTE:
-		    priv->flags |= ABSOLUTE_FLAG;
-		    break;
-		case RELATIVE:
-		    priv->flags &= ~ABSOLUTE_FLAG;
-		    break;
-		default:
-		    xf86ConfigError("Illegal Mode type");
-		    break;
-		}
-	    }
-	    break;
-
-	case CURSOR:
-	    mtoken = xf86GetToken(SumPointTabRec);
-	    if ((mtoken == EOF) || (mtoken == STRING) || (mtoken == NUMBER)) 
-		xf86ConfigError("Cursor token expected");
-	    else {
-		switch (mtoken) {
-		case STYLUS:
-		    priv->flags |= STYLUS_FLAG;
-		    break;
-		case PUCK:
-		    priv->flags &= ~STYLUS_FLAG;
-		    break;
-		default:
-		    xf86ConfigError("Illegal cursor type");
-		    break;
-		}
-	    }
-	    break;
-
-	case INCREMENT:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumInc = val->num;
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch increment value is %d\n", XCONFIG_GIVEN,
-		       priv->sumInc);
-	    break;
-
-	case DEBUG_LEVEL:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    debug_level = val->num;
-	    if (xf86Verbose) {
-#if DEBUG
-		ErrorF("%s SummaSketch debug level sets to %d\n", XCONFIG_GIVEN,
-		       debug_level);
-#else
-		ErrorF("%s SummaSketch debug level not sets to %d because"
-		       " debugging is not compiled\n", XCONFIG_GIVEN,
-		       debug_level);
-#endif
-	    }
-	    break;
-
-	case HISTORY_SIZE:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    dev->history_size = val->num;
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch Motion history size is %d\n", XCONFIG_GIVEN,
-		       dev->history_size);      
-	    break;
-
-	 case HITACHI_1217D:
-	    priv->flags |= H1217D_FLAG;
-	    priv->sumInc = 0;
-	    if(xf86Verbose)
-		ErrorF("%s Hitach_1217D, compatible enforced.\n", XCONFIG_GIVEN);
-
-	case COMPATIBLE:
-	    priv->flags |= COMPATIBLE_FLAG;
-	    if(xf86Verbose)
-		ErrorF("%s SummaSketch compatible - will not query firmware ID\n", XCONFIG_GIVEN);
-	    break;		    
-
-	case ALWAYS_CORE:
-	    xf86AlwaysCore(dev, TRUE);
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch device always stays core pointer\n",
-		       XCONFIG_GIVEN);
-	    break;
-
-	case ACTIVE_AREA:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumXSize = val->realnum * 100;
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumYSize = val->realnum * 100;
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch active area: %d.%02dx%d.%02d"
-		       " inches\n", XCONFIG_GIVEN, priv->sumXSize / 100,
-		       priv->sumXSize % 100, priv->sumYSize / 100,
-		       priv->sumYSize % 100);
-	    break;
-	    
-	case ACTIVE_OFFSET:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumXOffset = val->realnum * 100;
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumYOffset = val->realnum * 100;
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch active offsets: %d.%02d %d.%02d"
-		       " inches\n", XCONFIG_GIVEN, priv->sumXOffset / 100,
-		       priv->sumXOffset % 100, priv->sumYOffset / 100,
-		       priv->sumYOffset % 100);
-	    break;
-
-	case RESOLUTION:
-	    if (xf86GetToken(NULL) != NUMBER)
-		xf86ConfigError("Option number expected");
-	    priv->sumRes = val->num;
-	    if (xf86Verbose)
-		ErrorF("%s SummaSketch resolution set to %d\n", XCONFIG_GIVEN,
-		       priv->sumRes);
-	    break;
-
-	case EOF:
-	    FatalError("Unexpected EOF (missing EndSubSection)");
-	    break;
-
-	default:
-	    xf86ConfigError("SummaSketch subsection keyword expected");
-	    break;
-	}
-    }
-
-    DBG(2, ErrorF("xf86SumConfig name=%s\n", priv->sumDevice));
-
-    return Success;
-}
-#endif
-#endif
 
 /*
 ** xf86SumConvert
@@ -707,10 +391,6 @@ static char *
 xf86SumWriteAndRead(int fd, char *data, char *buffer, int len, int cr_term)
 {
     int err, numread = 0;
-#ifndef XFREE86_V4
-    fd_set readfds;
-    struct timeval timeout;
-#endif
 
     SYSCALL(err = write(fd, data, strlen(data)));
     if (err == -1) {
@@ -718,19 +398,8 @@ xf86SumWriteAndRead(int fd, char *data, char *buffer, int len, int cr_term)
 	return NULL;
     }
 
-#ifndef XFREE86_V4
-    FD_ZERO(&readfds);
-    FD_SET(fd, &readfds);
-#endif
     while (numread < len) {
-#ifndef XFREE86_V4
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 200000;
-
-	SYSCALL(err = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout));
-#else
 	err = xf86WaitForInput(fd, 200000);
-#endif
 	if (err == -1) {
 	    Error("SummaSketch select");
 	    return NULL;
@@ -808,10 +477,6 @@ xf86SumSetResCode (int *res, char *buffer, int index)
 static Bool
 xf86SumOpen(LocalDevicePtr local)
 {
-#ifndef XFREE86_V4
-    struct termios	termios_tty;
-    struct timeval	timeout;
-#endif
     char		buffer[256], dbuffer[4];
     int			err, idx;
     int			res100;
@@ -819,65 +484,12 @@ xf86SumOpen(LocalDevicePtr local)
     SummaDevicePtr	priv = (SummaDevicePtr)local->private;
 
     DBG(2, ErrorF("opening %s\n", priv->sumDevice));
-#ifdef XFREE86_V4
     local->fd = xf86OpenSerial(local->options);
-#else
-    SYSCALL(local->fd = open(priv->sumDevice, O_RDWR|O_NDELAY, 0));
-#endif
     if (local->fd == -1) {
 	Error(priv->sumDevice);
 	return !Success;
     }
     DBG(2, ErrorF("%s opened as fd %d\n", priv->sumDevice, local->fd));
-
-#ifndef XFREE86_V4
-#ifdef POSIX_TTY
-    err = tcgetattr(local->fd, &termios_tty);
-    if (err == -1) {
-	Error("SummaSketch tcgetattr");
-	return !Success;
-    }
-    termios_tty.c_iflag = IXOFF;
-    termios_tty.c_cflag = B9600|CS8|CREAD|CLOCAL|HUPCL|PARENB|PARODD;
-    termios_tty.c_lflag = 0;
-
-    /* prevent tty term discipline processing */
-    termios_tty.c_cc[VINTR] = 0;
-    termios_tty.c_cc[VQUIT] = 0;
-    termios_tty.c_cc[VERASE] = 0;
-#ifdef VWERASE
-    termios_tty.c_cc[VWERASE] = 0;
-#endif
-#ifdef VREPRINT
-    termios_tty.c_cc[VREPRINT] = 0;
-#endif
-    termios_tty.c_cc[VKILL] = 0;
-    termios_tty.c_cc[VEOF] = 0;
-    termios_tty.c_cc[VEOL] = 0;
-#ifdef VEOL2
-    termios_tty.c_cc[VEOL2] = 0;
-#endif
-    termios_tty.c_cc[VSUSP] = 0;
-#ifdef VDISCARD
-    termios_tty.c_cc[VDISCARD] = 0;
-#endif
-#ifdef VLNEXT
-    termios_tty.c_cc[VLNEXT] = 0; 
-#endif
-
-    termios_tty.c_cc[VMIN] = 1 ;
-    termios_tty.c_cc[VTIME] = 10 ;
-
-    err = tcsetattr(local->fd, TCSANOW, &termios_tty);
-    if (err == -1) {
-	Error("SummaSketch tcsetattr TCSANOW");
-	return !Success;
-    }
-#else
-#error Code for someone else to write to handle OSs without POSIX tty functions
-#endif
-
-#endif /* xf_v4 */
 
     DBG(2, ErrorF("initializing SummaSketch tablet\n"));
 
@@ -892,13 +504,7 @@ xf86SumOpen(LocalDevicePtr local)
     SYSCALL(err = write(local->fd, buffer, 1));
 
 /* Wait 400 mSecs, just in case.  200 ms isn't enough for the Genius EasyPen. */
-#ifndef XFREE86_V4
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 400000;
-    SYSCALL(err = select(0, NULL, NULL, NULL, &timeout));
-#else
     err = xf86WaitForInput(-1, 400000);
-#endif
     if (err == -1) {
 	Error("SummaSketch select");
 	return !Success;
@@ -910,12 +516,7 @@ xf86SumOpen(LocalDevicePtr local)
 	Error("SummaSketch write");
 	return !Success;
     }
-#ifndef XFREE86_V4
-/* Clear any pending input */
-    tcflush(local->fd, TCIFLUSH);
-#else
     xf86FlushInput(local->fd);
-#endif  
 
     if ((priv->flags & COMPATIBLE_FLAG) == 0) {
       DBG(2, ErrorF("reading firmware ID\n"));
@@ -1179,9 +780,6 @@ xf86SumProc(DeviceIntPtr pSum, int what)
 	    }
 	    /* allocate the motion history buffer if needed */
 	    xf86MotionHistoryAllocate(local);
-#ifndef XFREE86_V4
-	    AssignTypeAndName(pSum, local->atom, local->name);
-#endif
 	    /* open the device to gather informations */
 	    xf86SumOpenDevice(pSum);
 	    priv->flags |= INITIALIZED;
@@ -1205,11 +803,7 @@ xf86SumProc(DeviceIntPtr pSum, int what)
  * enagae signal handlers yet.  -huver@amgraf.com mar/12/2001.
 */
 #if 0
-# ifdef XFREE86_V4
 	    xf86AddEnabledDevice(local);
-# else
-	    AddEnabledDevice(local->fd);
-# endif
 #else
 	    AddEnabledDevice(local->fd);
 #endif
@@ -1222,11 +816,7 @@ xf86SumProc(DeviceIntPtr pSum, int what)
 	    if (! pSum->public.on) break;		/* already off */
 	    if (local->fd >= 0)
 #if 0
-# ifdef XFREE86_V4
 		    xf86RemoveEnabledDevice(local);
-# else
-	            RemoveEnabledDevice(local->fd);
-# endif
 #else
 	            RemoveEnabledDevice(local->fd);
 #endif
@@ -1261,11 +851,7 @@ xf86SumClose(LocalDevicePtr local)
 {
     DBG(2, ErrorF("xf86SumClose local = %p, ->fd = %d\n", (void *)local, local->fd));
     if (local->fd >= 0) {
-#ifdef XFREE86_V4
 	xf86CloseSerial(local->fd);
-#else
-	SYSCALL(close(local->fd));
-#endif
     }
     local->fd = -1;
     xf86SumInitPrivate (local->private);
@@ -1337,11 +923,7 @@ xf86SumAllocate(void)
     if (!priv)
 	return NULL;
 
-#ifdef XFREE86_V4
     local = xf86AllocateInput(sumDrv, 0);
-#else
-    local = xalloc(sizeof(LocalDeviceRec));
-#endif
     if (!local) {
 	xfree(priv);
 	return NULL;
@@ -1350,11 +932,6 @@ xf86SumAllocate(void)
     local->name = XI_NAME;
     local->type_name = "SummaSketch Tablet";
     local->flags = 0;
-#ifndef XFREE86_V4
-#if !defined(sun) || defined(i386)
-    local->device_config = xf86SumConfig;
-#endif
-#endif
     local->device_control = xf86SumProc;
     local->read_input = xf86SumReadInput;
     local->control_proc = xf86SumChangeControl;
@@ -1373,42 +950,6 @@ xf86SumAllocate(void)
     return local;
 }
 
-#ifndef XFREE86_V4
-/*
-** SummaSketch device association
-** Device section name and allocation function.
-*/
-DeviceAssocRec summasketch_assoc =
-{
-  SUMMA_SECTION_NAME,           /* config_section_name */
-  xf86SumAllocate               /* device_allocate */
-};
-
-#ifdef DYNAMIC_MODULE
-/*
-** init_module
-** Entry point for dynamic module.
-*/
-int
-#ifndef DLSYM_BUG
-init_module(unsigned long server_version)
-#else
-init_xf86Summa(unsigned long server_version)
-#endif
-{
-    xf86AddDeviceAssoc(&summasketch_assoc);
-
-    if (server_version != XF86_VERSION_CURRENT) {
-	ErrorF("Warning: SummaKetch module compiled for version%s\n",
-	       XF86_VERSION);
-	return 0;
-    } else {
-	return 1;
-    }
-}
-#endif /* dynamic_module */
-
-#else  /* below for xfree86_v4 */
 
 /*
  * xf86SumUninit --
@@ -1651,7 +1192,6 @@ _X_EXPORT XF86ModuleData summaModuleData = {
 };
 
 #endif /* XFree86LOADER */
-#endif /* XFREE86_V4 */
 
 
 /* end of xf86Summa.c */
